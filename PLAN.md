@@ -78,6 +78,12 @@
 
 在 STC-ISP 中选用 `STC89C52RC` 和 12T 模式，加载 `build/main.hex` 后按软件提示给单片机重新上电。更新固件时可勾选保留 EEPROM，以保留错题和串口录入的词条。硬件使用 11.0592 MHz 晶振，LCD 与按键接线按第 2 节。
 
+### 仿真
+
+使用通用 AT89C52 或 8052 模型时，执行 `make sim`（Windows 可用 `mingw32-make sim`），将 `build/sim/main.hex` 加载到模型的程序存储器，时钟设为 11.0592 MHz。这个版本使用标准 8052 内部 RAM，支持内置词库、翻页、作答、结算和本次开机内的错题重练。掉电保存和串口录词使用真机固件 `build/main.hex`。
+
+将 uCsim 的 `s51` 加入 `PATH` 后，可运行 `python tools/check_sim_quiz.py` 验证无 XRAM 时的词条显示和答题流程。
+
 ## 6. 操作说明
 
 - 主页按 K1 或 K3 开始全量测试，K2 开始错题重练。错题重练取本轮开始时的错题列表。

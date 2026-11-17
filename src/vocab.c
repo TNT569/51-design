@@ -2,8 +2,10 @@
 
 #include <string.h>
 
-#include "eeprom_record.h"
 #include "error_log.h"
+#ifndef WORD_TESTER_SIMULATOR
+#include "eeprom_record.h"
+#endif
 
 static const __code Word builtins[] = {
   {"abandon", "v.", "give up"},
@@ -21,20 +23,27 @@ static const __code Word builtins[] = {
 };
 
 #define BUILTIN_COUNT (sizeof(builtins) / sizeof(builtins[0]))
+#ifndef WORD_TESTER_SIMULATOR
 #define WORD_STORE_BASE (EEPROM_BASE + 2u * EEPROM_SECTOR_SIZE)
 #define WORD_SLOT_SIZE 32u
 #define WORD_SLOTS (2u * EEPROM_SECTOR_SIZE / WORD_SLOT_SIZE)
-#define VOCAB_CAPACITY (BUILTIN_COUNT + WORD_SLOTS)
-#define BITMAP_BYTES ((VOCAB_CAPACITY + 7u) / 8u)
 
 typedef char WordFitsSlot[(sizeof(Word) + EEPROM_RECORD_OVERHEAD <= WORD_SLOT_SIZE) ? 1 : -1];
-typedef char ErrorsFitBitmap[(VOCAB_CAPACITY <= ERROR_LOG_CAPACITY) ? 1 : -1];
-
 static __xdata Word existing_word;
 static __idata unsigned char valid_slots[WORD_SLOTS / 8u];
 static unsigned char next_slot;
+#else
+#define WORD_SLOTS 0u
+#endif
+
+#define VOCAB_CAPACITY (BUILTIN_COUNT + WORD_SLOTS)
+#define BITMAP_BYTES ((VOCAB_CAPACITY + 7u) / 8u)
+
+typedef char ErrorsFitBitmap[(VOCAB_CAPACITY <= ERROR_LOG_CAPACITY) ? 1 : -1];
+
 static __idata unsigned char misses[BITMAP_BYTES];
-static __xdata unsigned char selection[VOCAB_CAPACITY];
+/* A round snapshots word IDs in the 8052's standard internal RAM. */
+static __idata unsigned char selection[BITMAP_BYTES];
 static unsigned char total;
 static unsigned char answered;
 static unsigned char correct;
@@ -43,6 +52,7 @@ static unsigned char word_mask(unsigned char index) {
   return 1u << (index & 7u);
 }
 
+#ifndef WORD_TESTER_SIMULATOR
 static uint16_t word_address(unsigned char slot) {
   return WORD_STORE_BASE + slot * WORD_SLOT_SIZE;
 }
@@ -52,8 +62,10 @@ static bool read_slot(unsigned char slot, Word *word) {
          word->spelling[VOCAB_WORD_LEN] == '\0' && word->part[VOCAB_PART_LEN] == '\0' &&
          word->meaning[VOCAB_MEANING_LEN] == '\0';
 }
+#endif
 
 void vocab_init(void) {
+#ifndef WORD_TESTER_SIMULATOR
   unsigned char slot;
 
   memset(valid_slots, 0, sizeof(valid_slots));
@@ -66,16 +78,19 @@ void vocab_init(void) {
       }
     }
   }
+#endif
 }
 
 static bool has_word(unsigned char id) {
-  unsigned char slot;
-
   if (id < BUILTIN_COUNT) {
     return true;
   }
-  slot = id - BUILTIN_COUNT;
+#ifndef WORD_TESTER_SIMULATOR
+  unsigned char slot = id - BUILTIN_COUNT;
   return valid_slots[slot >> 3] & word_mask(slot);
+#else
+  return false;
+#endif
 }
 
 static bool read_word(unsigned char id, Word *word) {
@@ -83,9 +98,14 @@ static bool read_word(unsigned char id, Word *word) {
     *word = builtins[id];
     return true;
   }
-  return read_slot(id - BUILTIN_COUNT, word);
+#ifndef WORD_TESTER_SIMULATOR
+  return id < VOCAB_CAPACITY && read_slot(id - BUILTIN_COUNT, word);
+#else
+  return false;
+#endif
 }
 
+#ifndef WORD_TESTER_SIMULATOR
 static char lower_ascii(char letter) {
   return letter >= 'A' && letter <= 'Z' ? letter + ('a' - 'A') : letter;
 }
@@ -134,14 +154,31 @@ VocabAddResult vocab_add(const Word *word) {
   ++next_slot;
   return VOCAB_ADDED;
 }
+#endif
+
+static unsigned char selected_id(unsigned char position) {
+  unsigned char id;
+
+  for (id = 0; id < VOCAB_CAPACITY; ++id) {
+    if (selection[id >> 3] & word_mask(id)) {
+      if (position == 0) {
+        break;
+      }
+      --position;
+    }
+  }
+  return id;
+}
 
 bool quiz_start(bool errors_only) {
   unsigned char id;
 
+  memset(selection, 0, sizeof(selection));
   total = 0;
-  for (id = 0; id < BUILTIN_COUNT + next_slot; ++id) {
+  for (id = 0; id < VOCAB_CAPACITY; ++id) {
     if (has_word(id) && (!errors_only || error_log_get(id))) {
-      selection[total++] = id;
+      selection[id >> 3] |= word_mask(id);
+      ++total;
     }
   }
   quiz_restart();
@@ -159,7 +196,7 @@ void quiz_restart(void) {
 }
 
 bool quiz_read(unsigned char position, Word *word) {
-  return position < total && read_word(selection[position], word);
+  return position < total && read_word(selected_id(position), word);
 }
 
 bool quiz_answer(bool known) {
@@ -168,7 +205,7 @@ bool quiz_answer(bool known) {
   if (answered >= total) {
     return false;
   }
-  id = selection[answered];
+  id = selected_id(answered);
   if (!error_log_set(id, !known)) {
     return false;
   }

@@ -1,10 +1,13 @@
 #include "error_log.h"
 #include "key.h"
 #include "lcd1602.h"
-#include "serial_vocab.h"
 #include "timer.h"
-#include "uart.h"
 #include "vocab.h"
+
+#ifndef WORD_TESTER_SIMULATOR
+#include "serial_vocab.h"
+#include "uart.h"
+#endif
 
 typedef enum {
   STATE_HOME,
@@ -195,12 +198,16 @@ void main(void) {
   error_log_init();
   vocab_init();
   draw_screen();
+#ifndef WORD_TESTER_SIMULATOR
   uart_init();
+#endif
   while (1) {
     event = key_next();
     if (event != KEY_NONE) {
       handle_key(event);
     }
+#ifndef WORD_TESTER_SIMULATOR
     serial_vocab_poll();
+#endif
   }
 }
