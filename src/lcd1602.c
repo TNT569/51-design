@@ -1,56 +1,53 @@
+#include "lcd1602.h"
+
 #include "common.h"
-#include "lcd.h"
 #include "reg52.h"
 #include "timer.h"
-#include <8052.h>
-void lcd_write(Data_mod mode, unsigned char command, unsigned int delay) {
-  if (mode == DATA) {
-    lcd_RS = 1;
-  } else {
-    lcd_RS = 0;
-  }
-  lcd &= 0xF0;
-  lcd |= command / 16;
-  lcd_E = 1;
-  delay_ms(1);
-  lcd_E = 0;
-  lcd &= 0xF0;
-  lcd |= command % 16;
-  lcd_E = 1;
-  delay_ms(1);
-  lcd_E = 0;
-  delay_ms(delay);
+
+static void write_nibble(unsigned char nibble) {
+  LCD_PORT = (LCD_PORT & 0xf0) | nibble;
+  LCD_E = 1;
+  __asm nop __endasm;
+  LCD_E = 0;
 }
+
+static void write_byte(unsigned char value) {
+  write_nibble(value >> 4);
+  write_nibble(value & 0x0f);
+  delay_us(50);
+}
+
 void lcd_init_4bit(void) {
-  // 1. 上电后等待 > 15ms，确保LCD内部复位完成
-  delay_ms(15); // 或更大值，如20ms
+  LCD_E = 0;
+  LCD_RW = 0;
+  LCD_RS = 0;
+  delay_ms(40);
 
-  // 2. 发送0x33，然后必须等待 > 4.1ms
-  lcd_write(COMMAND, 0x33, 5); // 参数5代表5ms，满足要求
-  delay_ms(1);                 // 函数内部可能已延时，但额外等待更保险
+  /* Synchronize even if the MCU resets while the LCD stays powered. */
+  write_nibble(0x03);
+  delay_ms(5);
+  write_nibble(0x03);
+  delay_us(150);
+  write_nibble(0x03);
+  delay_us(150);
+  write_nibble(0x02);
+  delay_us(50);
 
-  // 3. 再次发送0x33，等待 > 100us (1ms足够)
-  lcd_write(COMMAND, 0x33, 1);
-
-  // 4. 第三次发送0x33 (部分资料建议，可提高稳定性)
-  lcd_write(COMMAND, 0x33, 1);
-
-  // 5. 发送0x32，切换到4位模式
-  lcd_write(COMMAND, 0x32, 1);
-
-  // 6. 后续配置命令
-  lcd_write(COMMAND, 0x28, 1); // 4位模式，2行显示，5x8点阵
-  lcd_write(COMMAND, 0x0C, 1); // 显示开，光标关
-  lcd_write(COMMAND, 0x01, 2); // 清屏，需要较长延时(>1.52ms)
-  lcd_write(COMMAND, 0x06, 1); // 入口模式：光标右移，屏幕不移动
+  write_byte(0x28);
+  write_byte(0x08);
+  write_byte(0x01);
+  delay_ms(2);
+  write_byte(0x06);
+  write_byte(0x0c);
 }
-void lcd_print(unsigned char c, char *string) {
-  if (c == 1)
-    lcd_write(COMMAND, 0x80, 1);
-  else
-    lcd_write(COMMAND, 0xC0, 1);
-  while (*string) {
-    lcd_write(DATA, *string, 1);
-    string++;
+
+void lcd_print(unsigned char row, const char *text) {
+  unsigned char column;
+
+  LCD_RS = 0;
+  write_byte(row == 1 ? 0x80 : 0xc0);
+  LCD_RS = 1;
+  for (column = 0; column < LCD_COLUMNS; ++column) {
+    write_byte(*text ? *text++ : ' ');
   }
 }

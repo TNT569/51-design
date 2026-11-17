@@ -1,9 +1,12 @@
-#ifndef COMMOM_H
-#define COMMOM_H
+#ifndef COMMON_H
+#define COMMON_H
 
-#define lcd P2
-#define lcd_RS P24
-#define lcd_RW P25
-#define lcd_E P26
+#define LCD_PORT P2
+#define LCD_RS P24
+#define LCD_RW P25
+#define LCD_E P26
+
+#define KEY_PORT P1
+#define KEY_MASK 0x07u
 
 #endif
