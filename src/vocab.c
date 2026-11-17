@@ -1,5 +1,7 @@
 #include "vocab.h"
 
+#include "error_log.h"
+
 static const __code Word builtins[] = {
   {"abandon", "v.", "give up"},
   {"accurate", "a.", "correct"},
@@ -18,9 +20,8 @@ static const __code Word builtins[] = {
 #define BUILTIN_COUNT (sizeof(builtins) / sizeof(builtins[0]))
 #define BITMAP_BYTES ((BUILTIN_COUNT + 7) / 8)
 
-static unsigned char errors[BITMAP_BYTES];
 static unsigned char misses[BITMAP_BYTES];
-static unsigned char selection[BUILTIN_COUNT];
+static __idata unsigned char selection[BUILTIN_COUNT];
 static unsigned char total;
 static unsigned char answered;
 static unsigned char correct;
@@ -34,7 +35,7 @@ bool quiz_start(bool errors_only) {
 
   total = 0;
   for (id = 0; id < BUILTIN_COUNT; ++id) {
-    if (!errors_only || (errors[id >> 3] & word_mask(id))) {
+    if (!errors_only || error_log_get(id)) {
       selection[total++] = id;
     }
   }
@@ -63,11 +64,12 @@ bool quiz_answer(bool known) {
     return false;
   }
   id = selection[answered];
+  if (!error_log_set(id, !known)) {
+    return false;
+  }
   if (known) {
-    errors[id >> 3] &= ~word_mask(id);
     ++correct;
   } else {
-    errors[id >> 3] |= word_mask(id);
     misses[answered >> 3] |= word_mask(answered);
   }
   ++answered;

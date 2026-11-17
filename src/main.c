@@ -1,3 +1,4 @@
+#include "error_log.h"
 #include "key.h"
 #include "lcd1602.h"
 #include "timer.h"
@@ -14,8 +15,8 @@ typedef enum {
 static State state;
 static unsigned char browse_position;
 static unsigned char review_position;
-static Word visible_word;
-static char line[LCD_COLUMNS + 1];
+static __idata Word visible_word;
+static __idata char line[LCD_COLUMNS + 1];
 
 static void clear_line(void) {
   unsigned char i;
@@ -129,7 +130,10 @@ static void handle_key(KeyEvent event) {
     break;
   case STATE_TEST:
     if (event == KEY_K1 || event == KEY_K2) {
-      quiz_answer(event == KEY_K1);
+      if (!quiz_answer(event == KEY_K1)) {
+        lcd_print(2, "Save failed");
+        return;
+      }
       if (quiz_answered() == quiz_total()) {
         state = STATE_RESULT;
       }
@@ -182,6 +186,7 @@ void main(void) {
   key_init();
   timer_init();
   lcd_init_4bit();
+  error_log_init();
   draw_screen();
   while (1) {
     event = key_next();
