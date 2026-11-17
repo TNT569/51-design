@@ -35,8 +35,8 @@ targets:
             language-c: c99
           global:
             device: mcs51
-            misc-controls: --iram-size 256 --xram-size 0 --code-size 8192
-            optimize-type: speed
+            misc-controls: --iram-size 256 --xram-loc 0 --xram-size 256 --code-size 8192
+            optimize-type: size
           linker:
             $mainFileName: main
             output-format: hex

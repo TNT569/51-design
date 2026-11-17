@@ -1,7 +1,9 @@
 #include "error_log.h"
 #include "key.h"
 #include "lcd1602.h"
+#include "serial_vocab.h"
 #include "timer.h"
+#include "uart.h"
 #include "vocab.h"
 
 typedef enum {
@@ -39,7 +41,11 @@ static void put_number(unsigned char col, unsigned char value) {
 }
 
 static void draw_word(unsigned char position, bool show_meaning) {
-  quiz_read(position, &visible_word);
+  if (!quiz_read(position, &visible_word)) {
+    lcd_print(1, "Read failed");
+    lcd_print(2, show_meaning ? "[<][>][M]" : "[Y][N][M]");
+    return;
+  }
   clear_line();
   put_number(0, position + 1);
   line[2] = '/';
@@ -187,11 +193,14 @@ void main(void) {
   timer_init();
   lcd_init_4bit();
   error_log_init();
+  vocab_init();
   draw_screen();
+  uart_init();
   while (1) {
     event = key_next();
     if (event != KEY_NONE) {
       handle_key(event);
     }
+    serial_vocab_poll();
   }
 }

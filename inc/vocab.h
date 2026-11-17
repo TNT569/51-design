@@ -13,9 +13,18 @@ typedef struct {
   char meaning[VOCAB_MEANING_LEN + 1];
 } Word;
 
+typedef enum {
+  VOCAB_ADDED,
+  VOCAB_DUPLICATE,
+  VOCAB_FULL,
+  VOCAB_SAVE_FAILED
+} VocabAddResult;
+
+void vocab_init(void);
+VocabAddResult vocab_add(const Word *word);
 bool quiz_start(bool errors_only);
 void quiz_restart(void);
-void quiz_read(unsigned char position, Word *word);
+bool quiz_read(unsigned char position, Word *word);
 bool quiz_answer(bool known);
 bool quiz_missed(unsigned char position);
 unsigned char quiz_total(void);
